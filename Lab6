@@ -1,0 +1,135 @@
+#include "pic24_all.h"
+#if __PIC24HJ128GP502__
+#define LED1 _LATA0 // MicroStick II definitions
+#define CONFIG_LED1() CONFIG_RA0_AS_DIG_OUTPUT()
+#endif
+int main(void) {
+CONFIG_LED1();
+LED1=0;
+int i,j;
+while (1) { // Infinite while loop
+	for (i = 0; i < 5; i++) {
+		for (j = 0; j < 10; j++) {
+			LED1 = !LED1; // Toggle LED1
+			DELAY_MS(100); // Delay 100ms
+		}
+	}
+	for (i = 0; i < 5; i++) {
+		for (j = 0; j < 5; j++) {
+			LED1 = !LED1; // Toggle LED1
+			DELAY_MS(200); // Delay 200ms
+		}
+	}
+}
+return 0;
+}
+
+Task 5: task5.c
+#include "pic24_all.h"
+#if __PIC24HJ128GP502__
+
+#define LEDR _LATB15
+#define LEDG _LATB14
+#define LEDB _LATB13
+#define SW1 _RB12
+#define SW2 _RB11
+
+#define CONFIG_LEDR() CONFIG_RB15_AS_DIG_OUTPUT()
+#define CONFIG_LEDG() CONFIG_RB14_AS_DIG_OUTPUT()
+#define CONFIG_LEDB() CONFIG_RB13_AS_DIG_OUTPUT()
+
+#define SW1_PRESSED() (SW1==0)
+#define SW1_RELEASED() (SW1==1)
+#define SW2_PRESSED() (SW2==0)
+#define SW2_RELEASED() (SW2==1)
+
+#endif
+										// line 20
+inline void CONFIG_SW1(){
+	CONFIG_RB12_AS_DIG_INPUT();
+	ENABLE_RB12_PULLUP();
+}
+
+inline void CONFIG_SW2(){
+	CONFIG_RB11_AS_DIG_INPUT();
+	ENABLE_RB11_PULLUP();
+}
+
+inline char binToGray(char bits){ //XOR and bitshift to convert bin->gray
+	return bits ^ (bits >> 1);
+}
+
+inline void display(uint8 bits){ //toggle LEDs per bit pattern given as int
+	LEDR = !!(bits & 4);
+	LEDG = !!(bits & 2);
+	LEDB = !!(bits & 1);
+}
+										// line 40
+int main (void){
+	uint8 x1_start = 0;
+	uint8 x1_count = 0;
+	uint8 x2_start = 0;
+	uint8 x2_count = 0;
+	uint8 y = 0;
+
+	CONFIG_LEDR();			// config LED lights
+	CONFIG_LEDG();
+	CONFIG_LEDB();
+	CONFIG_SW1();				// config switches
+	CONFIG_SW2();
+	DELAY_MS(10);				// delay to let configs take place
+
+	while(1){
+		y=!y;
+		if(SW1_RELEASED() && SW2_RELEASED()){ //no presses, turn all lights on
+			x1_start = 0;
+			x2_start = 0;
+			LEDR = 1;					// line 60
+			LEDG = 1;
+			LEDB = 1;
+		}
+		else if(SW1_RELEASED() && SW2_PRESSED()){ //only SW2 press, cycle binary
+			x2_start = 0; //clear gray counter
+			if(!x1_start){ //start new binary cycle
+				x1_start = 1;
+				x1_count = 0;
+			}
+			if(x1_count > 7){ //reset binary value to zero if at max value
+				x1_count = 0;
+			}
+			if(x1_count <= 7){ //if in range, show current value and increment
+				display(x1_count);
+				x1_count++;
+			}
+			DELAY_MS(485);
+		}
+		else if(SW1_PRESSED() && SW2_PRESSED()){ //only SW1 press, cycle gray
+			x1_start = 0;					// line 80
+			if(!x2_start){
+				x2_start = 1;
+				x2_count = 0;
+			}
+if(x2_count > 7){		// resets the counter to 0 after it
+				x2_count = 0;		// reaches 7
+			}
+			if(x2_count <= 7){ // if in range, show curr val in gray and inc
+				display((uint8) binToGray((uint8) x2_count));
+				x2_count++;
+			}
+			DELAY_MS(485);
+		}
+		else if(SW1_PRESSED() && SW2_PRESSED()){ //both pressed, blink all lights
+			x1_start = 0;
+			x2_start = 0;
+			if(LEDR||LEDG||LEDB){ //if any lights on, turn all lights off
+				display(0);
+			}
+			else{			  //else, turn all lights on
+				display(7);
+			}
+			DELAY_MS(85);	  // delay exactly 1/10th a second (85ms + 15ms)
+		}	
+		DELAY_MS(15);
+	}
+	return 0;
+}
